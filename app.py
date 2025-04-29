@@ -58,8 +58,6 @@ def form():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-
- 
     audio_file =  request.files['audio']
     print()
 
@@ -94,3 +92,6 @@ def submit():
 @app.route("/hehe")
 def hehe():
     return "<p>Hello, World!</p>"
+
+if __name__ == "__main__":
+    app.run()
