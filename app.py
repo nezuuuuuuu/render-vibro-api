@@ -13,7 +13,7 @@ import os
 app = Flask(__name__)
 try:
     # Use the handle that includes the framework and variant
-    model_path = kagglehub.model_download("google/yamnet/tensorFlow2/yamnet")
+    model_path = "model"
     print("Path to model files:", model_path)
 except Exception as e:
     print(f"Error downloading model: {e}")
