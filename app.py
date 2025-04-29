@@ -33,7 +33,7 @@ except Exception as e:
     exit() 
 
 
-class_map_path = os.path.join(model_path, "assets\\yamnet_class_map.csv")
+class_map_path = os.path.join(model_path, "assets/yamnet_class_map.csv")
 try:
     class_names_df = pd.read_csv(class_map_path)
     class_names = class_names_df.sort_values('index')['display_name'].tolist()
