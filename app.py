@@ -1,10 +1,6 @@
 from flask import Flask
-from IPython import display
 import tensorflow as tf
-import kagglehub
-import tensorflow_hub as hub
-import matplotlib.pyplot as plt
-import numpy as np
+
 import pandas as pd
 import librosa
 from flask import render_template
@@ -64,7 +60,7 @@ def submit():
         if not audio_file:
             return "No audio file uploaded", 400
 
-        import io
+
         audio_buffer = io.BytesIO(audio_file.read())
         y, sr = librosa.load(audio_buffer, sr=None)
         if sr != 16000:
