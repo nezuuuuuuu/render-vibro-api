@@ -2,16 +2,259 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Audio Upload Form</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sound Classifier (File Upload - Backend)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #1B1B3A;
+            color: #FFFFFF;
+        }
+        .result-item {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+            border-left: 4px solid #8A2BE2;
+        }
+        .result-item span {
+            margin: 0 0.5rem;
+        }
+        .result-item .time {
+            color: #a0aec0;
+        }
+        .result-item .sound {
+            font-weight: 600;
+        }
+        .result-item .score {
+            color: #8A2BE2;
+            font-weight: 600;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #8A2BE2;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-purple': '#8A2BE2',
+                        'brand-dark': '#1B1B3A',
+                        'brand-light': '#FFFFFF',
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <h1>Upload Audio for Prediction</h1>
-    <form action="/submit" method="POST" enctype="multipart/form-data">
-  
-        <label for="audio">Select Audio File:</label><br>
-        <input type="file" name="audio" id="audio" accept="audio/*" required><br><br>
+<body class="min-h-screen flex flex-col items-center pt-10 bg-brand-dark text-brand-light">
 
-        <button type="submit">Submit</button>
-    </form>
+    <h1 class="text-4xl font-bold mb-8 text-brand-purple">VIBRO SOUND DETECTOR</h1>
+
+    <div class="w-full max-w-md px-4 mb-8">
+        <input type="file" id="audioFile" accept="audio/wav, audio/ogg, audio/mp3" class="w-full text-sm text-gray-500
+            file:mr-4 file:py-2 file:px-4
+            file:rounded-full file:border-0
+            file:text-sm file:font-semibold
+            file:bg-brand-purple file:text-white
+            hover:file:bg-purple-700
+            mb-4
+        "/>
+        <button id="uploadButton" class="w-full bg-brand-purple hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center text-lg">
+            Upload and Classify
+        </button>
+        <div id="status" class="text-center mt-4 text-gray-400 text-sm flex items-center justify-center">
+            Status: Select a WAV, OGG, or MP3 file
+            <div id="loadingSpinner" class="loader ml-2"></div>
+        </div>
+    </div>
+
+    <div class="w-full max-w-md px-4 flex-grow">
+        <h2 class="text-xl font-semibold mb-4 text-center">SOUNDS DETECTED</h2>
+        <div id="resultsList" class="bg-opacity-10 bg-white p-4 rounded-lg h-96 overflow-y-auto">
+            <p id="placeholder" class="text-gray-500 text-center italic">Upload a WAV, OGG, or MP3 audio file to start detecting...</p>
+        </div>
+    </div>
+
+    <script>
+        const audioFile = document.getElementById('audioFile');
+        const uploadButton = document.getElementById('uploadButton');
+        const statusDiv = document.getElementById('status');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const resultsList = document.getElementById('resultsList');
+        const placeholder = document.getElementById('placeholder');
+    
+        // Disable the upload button initially
+        uploadButton.disabled = true;
+    
+        // Add event listener for when a file is selected
+        audioFile.addEventListener('change', () => {
+            if (audioFile.files.length > 0) {
+                const file = audioFile.files[0];
+                // Sync frontend check with backend supported formats
+                const allowedTypes = ['audio/wav', 'audio/ogg', 'audio/mpeg']; // audio/mpeg is common for mp3
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+                const allowedExtensions = ['wav', 'ogg', 'mp3'];
+    
+                if (allowedTypes.includes(file.type) || allowedExtensions.includes(fileExtension)) {
+                    // Enable the upload button if a supported file is selected
+                    uploadButton.disabled = false;
+                    statusDiv.textContent = `Status: File selected (${file.name})`; // Corrected
+                } else {
+                    // Disable button and show warning for unsupported file types
+                    uploadButton.disabled = true;
+                    statusDiv.textContent = `Status: Unsupported file type. Please select WAV, OGG, or MP3.`; // Corrected
+                    console.warn(`Selected file type (${file.type}) or extension (${fileExtension}) is not supported.`);
+                }
+    
+            } else {
+                // Disable the button if no file is selected
+                uploadButton.disabled = true;
+                statusDiv.textContent = 'Status: Select a WAV, OGG, or MP3 file';
+            }
+        });
+    
+        // Add event listener to the upload button
+        uploadButton.addEventListener('click', async () => {
+            if (audioFile.files.length > 0 && !uploadButton.disabled) { // Check if button is not disabled
+                const file = audioFile.files[0];
+                await sendAudioFileForPrediction(file);
+            } else {
+                statusDiv.textContent = 'Status: No supported file selected or button disabled.';
+            }
+        });
+    
+        // Function to send audio file to the backend
+        async function sendAudioFileForPrediction(audioFileBlob) {
+            const formData = new FormData();
+            formData.append('audio', audioFileBlob, audioFileBlob.name);
+    
+            // Update UI to indicate processing
+            uploadButton.textContent = 'Processing...';
+            uploadButton.disabled = true;
+            uploadButton.classList.remove('bg-brand-purple', 'hover:bg-purple-700');
+            uploadButton.classList.add('bg-gray-500'); // Indicate disabled state visually
+            statusDiv.textContent = 'Status: Uploading and processing...';
+            loadingSpinner.style.display = 'inline-block';
+            placeholder.style.display = 'none'; // Hide placeholder
+    
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    body: formData, // Send the form data
+                });
+    
+                if (!response.ok) {
+                    const errorText = await response.text(); // Get raw text for more info
+                    console.error('HTTP error response text:', errorText);
+                    let errorDetails = `HTTP error! status: ${response.status}`; // Corrected
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        errorDetails = errorJson.error || errorDetails; // Assuming backend returns {"error": "message"}
+                    } catch (e) {
+                        // Not a JSON response, use the raw text or status
+                    }
+                    throw new Error(`Prediction failed: ${errorDetails}`); // Corrected
+                }
+    
+                const result = await response.json(); // Parse the JSON response
+    
+                // Display the prediction result
+                displayResult(result); // Pass the result object
+    
+            } catch (error) {
+                console.error('Error sending audio file for prediction:', error);
+                statusDiv.textContent = `Status: Prediction Error: ${error.message}`; // Corrected
+    
+                // Add an error item to the results list
+                displayResult({ sound: `Error: ${error.message}`, score: null }, true); // Corrected
+    
+            } finally {
+                // Reset UI elements after processing
+                uploadButton.textContent = 'Upload and Classify';
+    
+                // Re-enable button only if a supported file is still selected
+                if (audioFile.files.length > 0) {
+                    const file = audioFile.files[0];
+                    const allowedTypes = ['audio/wav', 'audio/ogg', 'audio/mpeg'];
+                    const fileExtension = file.name.split('.').pop().toLowerCase();
+                    const allowedExtensions = ['wav', 'ogg', 'mp3'];
+    
+                    if (allowedTypes.includes(file.type) || allowedExtensions.includes(fileExtension)) {
+                        uploadButton.disabled = false;
+                        uploadButton.classList.remove('bg-gray-500');
+                        uploadButton.classList.add('bg-brand-purple', 'hover:bg-purple-700');
+                        statusDiv.textContent = `Status: File selected (${file.name})`; // Reset status text if valid file still selected
+                    } else {
+                        uploadButton.disabled = true;
+                        uploadButton.classList.remove('bg-gray-500');
+                        uploadButton.classList.add('bg-brand-purple', 'hover:bg-purple-700'); // Keep original color for clarity? Or gray? Let's keep original.
+                        statusDiv.textContent = `Status: Unsupported file type. Please select WAV, OGG, or MP3.`; // Corrected
+                    }
+                } else {
+                    uploadButton.disabled = true;
+                    uploadButton.classList.remove('bg-gray-500');
+                    uploadButton.classList.add('bg-brand-purple', 'hover:bg-purple-700');
+                    statusDiv.textContent = 'Status: Select a WAV, OGG, or MP3 file'; // Reset status text if no file
+                }
+    
+    
+                loadingSpinner.style.display = 'none'; // Hide loading spinner
+            }
+        }
+    
+        // Function to display the prediction result in the list
+        function displayResult(result, isError = false) {
+            const resultItem = document.createElement('div');
+            resultItem.classList.add('result-item');
+    
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+            if (isError) {
+                // For errors, display the error message
+                resultItem.innerHTML = `
+                    <span class="time">${timeString}</span>
+                    <span class="sound text-red-400">${result.sound}</span>
+                    <span></span>`; // Empty span for score column alignment
+                resultItem.style.borderLeftColor = '#EF4444'; // Red border for error
+            } else {
+                // For successful results, use the keys from the backend response
+                resultItem.innerHTML = `
+                    <span class="time">${timeString}</span>
+                    <span class="sound">${result.inferred_class}</span>
+                    <span class="score">${(result.confidence * 100).toFixed(2)}%</span>`;
+            }
+    
+            resultsList.prepend(resultItem); // Add the latest result on top
+    
+            // If placeholder is visible, hide it
+            if (placeholder.style.display !== 'none') {
+                placeholder.style.display = 'none';
+            }
+        }
+    
+        // Initial check on load (though usually no file is selected)
+        audioFile.dispatchEvent(new Event('change'));
+    
+    </script>
 </body>
 </html>

@@ -17,7 +17,6 @@ except Exception as e:
     print("Please ensure you have kagglehub installed and configured (e.g., logged in via kaggle CLI).")
     exit() # Exit if download fails
 
-
 print("Loading YAMNet model from disk...")
 try:
 
@@ -85,6 +84,13 @@ def submit():
 @app.route("/hehe")
 def hehe():
     return "<p>Hello, World!</p>"
+
+@app.route('/submit', methods=['POST'])
+def train():
+
+    return "<p>Hello, World!</p>"
+
+
 
 if __name__ == "__main__":
     app.run()
