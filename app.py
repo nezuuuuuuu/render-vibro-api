@@ -10,6 +10,7 @@ import librosa
 from flask import render_template
 from flask import request, jsonify
 import os
+import io
 app = Flask(__name__)
 try:
     # Use the handle that includes the framework and variant
@@ -58,37 +59,33 @@ def form():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    audio_file =  request.files['audio']
-    print()
+    try:
+        audio_file = request.files['audio']
+        if not audio_file:
+            return "No audio file uploaded", 400
 
-    if not audio_file:
-        return "No audio file uploaded", 400
+        import io
+        audio_buffer = io.BytesIO(audio_file.read())
+        y, sr = librosa.load(audio_buffer, sr=None)
+        if sr != 16000:
+            y = librosa.resample(y, orig_sr=sr, target_sr=16000)
+        waveform = tf.convert_to_tensor(y, dtype=tf.float32)
 
-    # Load and resample audio
-    y, sr = librosa.load(audio_file, sr=None)
-    if sr != 16000:
-        y = librosa.resample(y, orig_sr=sr, target_sr=16000)
-    waveform = tf.convert_to_tensor(y, dtype=tf.float32)
+        output = infer(waveform)
+        scores = output['output_0']
+        class_scores = tf.reduce_mean(scores, axis=0)
+        top_class = tf.argmax(class_scores)
+        inferred_class = class_names[int(top_class)]
+        top_score = float(class_scores[top_class])
 
-    # Run inference
-    output = infer(waveform)
-    print(output)
-    scores = output['output_0']    
-    embeddings = output['output_1'] 
-    spectrogram = output['output_2'] 
-    class_scores = tf.reduce_mean(scores, axis=0)
-    top_class = tf.argmax(class_scores)
-    inferred_class = class_names[int(top_class)]
-    top_score = float(class_scores[top_class])
-
-    print(f'[YAMNet] The main sound is: {inferred_class} ({top_score})')
-
-    return jsonify({
-       
-        "inferred_class": inferred_class,
-        "confidence": top_score
-    })
-
+        return jsonify({
+            "inferred_class": inferred_class,
+            "confidence": top_score
+        })
+    except Exception as e:
+        print("Error in /submit:", e)
+        return "Error processing audio", 500
+    
 @app.route("/hehe")
 def hehe():
     return "<p>Hello, World!</p>"
